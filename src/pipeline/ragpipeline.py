@@ -1,50 +1,60 @@
 import json
 import time
+import logging
 from typing import List, Dict, Optional, Union
 from src.config import Constants
 from src.models.conversation import ConversationManager, Message
+from src.models.embedding import OptimizedEmbeddingModel
+from src.models.llm import LLMModel
+from src.retrieval.retriever import Retriever
+
+logger = logging.getLogger(__name__)
 
 class EnhancedRAGPipeline:
     """
-    Enhanced RAG Pipeline with conversation support, caching, and performance optimizations.
-    
-    Features:
-    - Conversation history management
-    - Context-aware responses
-    - Performance monitoring
-    - Caching for repeated queries
+    Orchestrates the entire Retrieval-Augmented Generation process.
+
+    This class integrates various components like the retriever, LLM, and
+    conversation manager to provide contextual and accurate answers. It also
+    features a caching mechanism and performance monitoring.
     """
     
     def __init__(
         self,
-        retriever,
-        llm,
+        retriever: Retriever,
+        llm: LLMModel,
         conversation_manager: Optional[ConversationManager] = None,
         device: str = Constants.DEVICE,
         enable_query_cache: bool = True,
         max_context_tokens: int = 2000
-    ):
+    ) -> None:
+        """
+        Initializes the EnhancedRAGPipeline.
+
+        Args:
+            retriever (Retriever): The retriever instance for fetching documents.
+            llm (LLMModel): The language model for generating answers.
+            conversation_manager (Optional[ConversationManager]): Manages conversation history.
+                If None, a new one is created.
+            device (str): The device to run models on (e.g., 'cuda', 'cpu').
+            enable_query_cache (bool): If True, caches query responses.
+            max_context_tokens (int): The maximum number of tokens to use for conversation context.
+        """
         self.retriever = retriever
         self.llm = llm
         self.device = device
         self.enable_query_cache = enable_query_cache
         self.max_context_tokens = max_context_tokens
         
-        # Initialize conversation manager if not provided
-        if conversation_manager is None:
-            self.conversation_manager = ConversationManager()
-        else:
-            self.conversation_manager = conversation_manager
+        self.conversation_manager = conversation_manager or ConversationManager()
         
-        # Query cache for repeated questions
-        self._query_cache = {}
-        self._cache_stats = {"hits": 0, "misses": 0}
+        self._query_cache: Dict[str, str] = {}
+        self._cache_stats: Dict[str, int] = {"hits": 0, "misses": 0}
         
-        # Performance monitoring
-        self._performance_stats = {
+        self._performance_stats: Dict[str, Union[int, float]] = {
             "total_queries": 0,
             "avg_processing_time": 0.0,
-            "total_processing_time": 0.0
+            "total_processing_time": 0.0,
         }
     
     def _generate_cache_key(self, query: str, user_id: str, context_messages: List[Message]) -> str:

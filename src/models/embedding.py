@@ -1,47 +1,69 @@
 import os
 import hashlib
 import pickle
+import logging
 from functools import lru_cache
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Any
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from src.config import Constants
+from src.utils.resilience import (
+    resilient,
+    get_resilience_manager,
+    CircuitBreakerConfig,
+    RetryConfig,
+    FallbackConfig
+)
+
+logger = logging.getLogger(__name__)
 
 class OptimizedEmbeddingModel:
     """
-    Enhanced embedding model with caching, batching, and performance optimizations.
-    
-    Features:
-    - LRU caching for frequently used embeddings
-    - Batch processing for efficiency
-    - Disk-based caching for persistent storage
-    - Memory-efficient processing
+    Handles the generation of text embeddings with multiple optimizations.
+
+    This class provides a robust interface for creating embeddings, featuring:
+    - In-memory (LRU) and disk-based caching to avoid re-computing embeddings.
+    - Batch processing for efficient generation of multiple embeddings at once.
+    - Resilience features like circuit breakers and retries for model robustness.
     """
     
     def __init__(
-        self, 
-        model_name: str, 
+        self,
+        model_name: str,
         device: str = Constants.DEVICE,
         cache_dir: str = "./cache/embeddings",
         batch_size: int = 32,
-        enable_disk_cache: bool = True
-    ):
+        enable_disk_cache: bool = True,
+        enable_resilience: bool = True
+    ) -> None:
+        """
+        Initializes the OptimizedEmbeddingModel.
+
+        Args:
+            model_name (str): The name of the SentenceTransformer model.
+            device (str): The device to run the model on (e.g., 'cuda', 'cpu').
+            cache_dir (str): Directory to store disk cache for embeddings.
+            batch_size (int): The batch size for encoding multiple texts.
+            enable_disk_cache (bool): If True, uses a disk cache.
+            enable_resilience (bool): If True, enables circuit breaker and retry logic.
+        """
         self.model_name = model_name
         self.device = device
         self.batch_size = batch_size
         self.cache_dir = cache_dir
         self.enable_disk_cache = enable_disk_cache
+        self.enable_resilience = enable_resilience
         
-        # Create cache directory
         if self.enable_disk_cache:
             os.makedirs(cache_dir, exist_ok=True)
         
-        # Load model
-        self.model = self._load_model()
+        self.model: Optional[SentenceTransformer] = self._load_model_with_resilience() if self.enable_resilience else self._load_model()
         
-        # Initialize in-memory cache
-        self._memory_cache = {}
-        self._cache_stats = {"hits": 0, "misses": 0}
+        self._memory_cache: Dict[str, List[float]] = {}
+        self._cache_stats: Dict[str, int] = {"hits": 0, "misses": 0}
+        
+        if self.enable_resilience:
+            self._configure_resilience()
     
     def _load_model(self) -> SentenceTransformer:
         """Load the embedding model from local path or Hugging Face."""
@@ -151,25 +173,35 @@ class OptimizedEmbeddingModel:
         
         return results
     
-    def embed(self, texts: Union[str, List[str]], prompt_name: str) -> Union[List[float], List[List[float]]]:
+    def embed(self, texts: Union[str, List[str]], prompt_name: str) -> Union[List[float], List[List[float]], None]:
         """
-        Main embedding method that handles both single and batch inputs efficiently.
-        
+        Generates embeddings for a single text or a list of texts.
+
+        This method automatically handles whether to use single-text caching
+        or batch processing based on the input type.
+
         Args:
-            texts: Single text string or list of texts
-            prompt_name: Type of embedding prompt
-            
+            texts (Union[str, List[str]]): A single text string or a list of text strings.
+            prompt_name (str): The prompt name to use for the embedding model,
+                which can affect how the embedding is generated.
+
         Returns:
-            Single embedding vector or list of embedding vectors
+            Union[List[float], List[List[float]], None]: The generated embedding(s),
+            or None if a critical error occurs.
         """
-        if isinstance(texts, str):
-            # Single text - use cached method
-            return self.embed_single_cached(texts, prompt_name)
-        elif isinstance(texts, list):
-            # Multiple texts - use batch processing
-            return self.embed_batch(texts, prompt_name)
-        else:
-            raise ValueError("Input must be a string or list of strings")
+        if self.model is None:
+            logger.error("Embedding model is not loaded. Cannot generate embeddings.")
+            return None
+        try:
+            if isinstance(texts, str):
+                return self.embed_single_cached(texts, prompt_name)
+            elif isinstance(texts, list):
+                return self.embed_batch(texts, prompt_name)
+            else:
+                raise TypeError("Input 'texts' must be a string or a list of strings.")
+        except Exception as e:
+            logger.error(f"Failed to generate embedding: {e}", exc_info=True)
+            return None
     
     def get_cache_stats(self) -> Dict[str, int]:
         """Get cache performance statistics."""
@@ -195,7 +227,7 @@ class OptimizedEmbeddingModel:
                     os.remove(os.path.join(self.cache_dir, file))
 
 
-# Backward compatibility - keep the old class name
+# Backward compatibility
 class EmbeddingModel(OptimizedEmbeddingModel):
-    """Backward compatibility wrapper for the old EmbeddingModel class."""
+    """A backward-compatible alias for OptimizedEmbeddingModel."""
     pass
