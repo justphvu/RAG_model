@@ -99,6 +99,7 @@ class EnhancedRAGPipeline:
             List of messages in chat format
         """
         # Format retrieved documents
+
         formatted_docs = []
         for i, answer in enumerate(answers):
             metadata = answer.get("metadata", {})

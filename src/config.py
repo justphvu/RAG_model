@@ -7,11 +7,13 @@ class Constants:
     """
     Конфигурация проекта
     """
+
     DEVICE=os.getenv("DEVICE")
     RAW_HTML_PATH = "./data/"
     DB_PATH = os.getenv("CHROMA_PERSISTENCE_DIR")
     HF_TOKEN = os.getenv("HUGGINGFACE_TOKEN")
     TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+
         
     """Chunking config"""
     parent_chunk_size = 2000
@@ -34,8 +36,10 @@ class Constants:
     ]
     
     """Model's name"""
-    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
-    LLM_MODEL = os.getenv("LLM_MODEL")
+
+    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL") # recommend "ai-forever/FRIDA"
+    LLM_MODEL = os.getenv("LLM_MODEL") # recommend "yandex/YandexGPT-5-Lite-8B-instruct"
+
     
     """Model's source"""
     LLM_MODEL_PATH = "./models/llm"
@@ -46,6 +50,7 @@ class Constants:
     PARENT_COLLECTION = "parent"
     CHILD_COLLECTION = "child"
     
+
     """Conversation's config"""
     MAX_CONVERSATIONS = 1000 # Maximum number of conversations to keep in memory
     CONVERSATION_TTL = 3600 # 1 hour
@@ -64,6 +69,7 @@ class Constants:
     """LLM's config"""
     MAX_MEMORY = None # Maximum memory for LLM
     LOAD_IN_8BIT = True # Load in 8bit    
+
     
     """Answer generation's config"""
     DEFAULT_SYSTEM_PROMPT = """Ты лаконичный и точный ассистент. Отвечай на вопросы пользователя прямо, только на основе предоставленного контекста. Не объясняй, не обосновывай и не уточняй, если об этом явно не просят. Если ответа нет в контексте, ответь: "Ответа нет." """

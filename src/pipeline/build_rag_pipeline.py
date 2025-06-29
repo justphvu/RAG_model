@@ -26,6 +26,7 @@ def build_rag_pipeline() -> EnhancedRAGPipeline:
     llm = LLMModel(Constants.LLM_MODEL)
 
     # Step 3: Initialize ChromaDB manager with optimized embedding model
+
     chroma_manager = ChromaDBManager(
         persist_directory=Constants.DB_PATH,
         embedding_model=embedding_model

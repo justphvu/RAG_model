@@ -75,7 +75,6 @@ class LLMModel:
             })
         elif self.use_half_precision:
             load_kwargs["torch_dtype"] = torch.float16
-            
         if os.path.exists(self.local_llm_path):
             print(f"Loading model from local path: {self.local_llm_path}")
             model = AutoModelForCausalLM.from_pretrained(
